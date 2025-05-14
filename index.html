@@ -1667,17 +1667,31 @@ $(function() {
           
           <button class="sb-button sb-button--form contact-form__btn" data-component-field="form_details" data-sb-field="button_label" data-sb-is-link="" data-sb-type="text" data-sb-uuid="c922a611-2eec-4f01-b7e3-b3268ee272d2" type="submit">Submit</button>
 </form>-->
-        <form action="https://contact-form-api-server.vercel.app/api/contact" method="POST">
-  <input type="text" name="name" placeholder="Your Name" required>
-  <input type="email" name="email" placeholder="Your Email" required>
-  <input type="tel" name="phone" placeholder="Your Phone Number" required>
-  <textarea name="message" placeholder="Your Message" required></textarea>
+        <form action="https://contact-form-api-server.vercel.app/api/contact" method="POST" class="form js-form">
+  <div class="form__group form__group--required">
+    <input type="text" name="name" placeholder="Your Name" class="form__input contact-form__input" required>
+  </div>
 
-  <input type="checkbox" name="consent" value="yes" required>
-  <label for="consent">I allow this website to store my submission so they can respond to my inquiry.</label>
+  <div class="form__group form__group--required">
+    <input type="email" name="email" placeholder="Your Email" class="form__input contact-form__input" required>
+  </div>
 
-  <input type="hidden" name="_next" value="https://hanshoyos.github.io/J-G-Trucking-and-Grading/thank-you.html">
-  <button type="submit">Send</button>
+  <div class="form__group form__group--required">
+    <input type="tel" name="phone" placeholder="Your Phone Number" class="form__input contact-form__input" required>
+  </div>
+
+  <div class="form__group">
+    <textarea name="message" placeholder="Your Message" class="form__input contact-form__input" required></textarea>
+  </div>
+
+  <div class="form__group form__group--checkbox form__group--required">
+    <input type="checkbox" id="consent" name="consent" value="yes" class="form__input form__input--checkbox" required>
+    <label for="consent" class="form__label contact-form__label">
+      I allow this website to store my submission so they can respond to my inquiry.
+    </label>
+  </div>
+
+  <button type="submit" class="sb-button sb-button--form contact-form__btn">Send</button>
 </form>
 
 <div class="b12-form-error">
