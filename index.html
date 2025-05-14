@@ -1583,41 +1583,14 @@ $(function() {
         <div data-aos="slide-up" data-aos-offset="120" data-aos-delay="100" data-aos-duration="400" data-aos-easing="ease-in-out" data-aos-once="true" class="sb-paragraph sb-section-alignable" data-component-field="paragraph" data-sb-field="text" data-sb-is-link="" data-sb-type="rich-text" data-sb-uuid="d3e7d581-108a-45ef-aabb-53402c021fd2"><p></p></div>
 
         
-        <form data-aos="slide-up" data-aos-offset="120" data-aos-delay="0" data-aos-duration="400" data-aos-easing="ease-in-out" data-aos-once="true" class="form js-form" data-recaptcha-version="1" data-sb-type="contact_form" data-sb-uuid="c922a611-2eec-4f01-b7e3-b3268ee272d2" data-semantic-tag-blueprint="contact-form-form" data-send-type="ajax" id="UL_FORM_15e6c603-e817-41f2-ba25-47932b0e2c99" action="https://contact-form-api-server.vercel.app/api/contact" method="POST">
-
-  <div class="form__group form__group--required">
-    <label class="form__label contact-form__label" for="name">Name <span class="form__label-required" title="This field is required">*</span></label>
-    <input type="text" id="name" name="name" placeholder="Jane Smith" class="form__input contact-form__input" required>
-  </div>
-
-  <div class="form__group form__group--required">
-    <label class="form__label contact-form__label" for="email">Email address <span class="form__label-required" title="This field is required">*</span></label>
-    <input type="email" id="email" name="email" placeholder="email@website.com" class="form__input contact-form__input" required>
-  </div>
-
-  <div class="form__group form__group--required">
-    <label class="form__label contact-form__label" for="phone">Phone number <span class="form__label-required" title="This field is required">*</span></label>
-    <input type="tel" id="phone" name="phone" placeholder="555-555-5555" class="form__input contact-form__input" required>
-  </div>
-
-  <div class="form__group">
-    <label class="form__label contact-form__label" for="message">Message</label>
-    <textarea id="message" name="message" placeholder="Your Message" rows="4" class="form__input form__input--textarea contact-form__textarea" required></textarea>
-  </div>
-
-  <div class="form__group form__group--checkbox form__group--required">
-    <div class="form__checkbox-error" id="checkbox-error-message-gdpr_consent">
-      Please select at least one option.
-    </div>
-    <div class="form__input-checkbox-wrapper">
-      <input class="form__input form__input--checkbox" id="consent" name="consent" type="checkbox" value="yes" required>
-      <label class="form__label contact-form__label" for="consent">
-        I allow this website to store my submission so they can respond to my inquiry. <span class="form__label-required" title="This field is required">*</span>
-      </label>
-    </div>
-  </div>
-
-  <button type="submit" class="sb-button sb-button--form contact-form__btn">Submit</button>
+        <form action="https://contact-form-api-server.vercel.app/api/contact" method="POST">
+  <input type="text" name="name" placeholder="Your Name" required />
+  <input type="email" name="email" placeholder="Your Email" required />
+  <input type="tel" name="phone" placeholder="Your Phone" required />
+  <textarea name="message" placeholder="Your Message" required></textarea>
+  <input type="checkbox" name="consent" value="yes" required /> I allow this site to contact me
+  <input type="hidden" name="_next" value="https://hanshoyos.github.io/J-G-Trucking-and-Grading/thank-you.html" />
+  <button type="submit">Submit</button>
 </form>
 
 <div class="b12-form-error">
