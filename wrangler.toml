@@ -1,0 +1,5 @@
+name = "j-g-trucking-and-grading"
+compatibility_date = "2025-05-22"
+
+[site]
+bucket = "./"
