@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ace-ingest.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ace-ingest.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ace-ingest.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ace-ingest.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+        # Force pod restart when config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "ace-ingest.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ace-ingest
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "ace-ingest.fullname" . }}-config
+          ports:
+            - name: health
+              containerPort: 8080
+              protocol: TCP
+            - name: syslog-tcp
+              containerPort: {{ .Values.protocols.syslog.tcpPort | default 6514 }}
+              protocol: TCP
+            - name: syslog-udp
+              containerPort: {{ .Values.protocols.syslog.udpPort | default 514 }}
+              protocol: UDP
+            {{- if .Values.protocols.wef.enabled }}
+            - name: wef
+              containerPort: {{ .Values.protocols.wef.port | default 5985 }}
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.protocols.k8sAudit.enabled }}
+            - name: k8s-audit
+              containerPort: {{ .Values.protocols.k8sAudit.port | default 9443 }}
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

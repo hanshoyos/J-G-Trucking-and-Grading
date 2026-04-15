@@ -1,0 +1,72 @@
+replicaCount: 2
+
+image:
+  repository: "ghcr.io/ace-platform/ace-normalize"
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+kafkaBrokers: "ace-kafka:9092"
+tenantId: "default"
+geoipDbPath: ""
+
+kafka:
+  rawTopic: "ace.events.raw"
+  normalizedTopic: "ace.events.normalized"
+  consumerGroup: "ace-normalize"
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "4"
+    memory: "4Gi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8081"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  healthPort: 8081
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ace-normalize
+          topologyKey: kubernetes.io/hostname
+
+tolerations: []
+nodeSelector: {}

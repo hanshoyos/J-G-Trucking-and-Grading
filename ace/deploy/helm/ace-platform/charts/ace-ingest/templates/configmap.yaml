@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ace-ingest.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ace-ingest.labels" . | nindent 4 }}
+data:
+  ACE_INGEST__TENANT_ID:    {{ .Values.tenantId | quote }}
+  ACE_INGEST__COLLECTOR_ID: {{ .Values.collectorId | default (include "ace-ingest.fullname" .) | quote }}
+  ACE_INGEST__KAFKA__BROKERS: {{ .Values.kafkaBrokers | quote }}
+  ACE_INGEST__KAFKA__RAW_TOPIC: {{ .Values.kafka.rawTopic | default "ace.events.raw" | quote }}
+  ACE_INGEST__KAFKA__QUEUE_BUFFERING_MAX_MESSAGES: {{ .Values.kafka.queueBufferingMaxMessages | default 1000000 | quote }}
+  ACE_INGEST__KAFKA__ACKS: {{ .Values.kafka.acks | default "1" | quote }}
+
+  # Syslog
+  ACE_INGEST__PROTOCOLS__SYSLOG__ENABLED:   {{ .Values.protocols.syslog.enabled | quote }}
+  ACE_INGEST__PROTOCOLS__SYSLOG__UDP_PORT:  {{ .Values.protocols.syslog.udpPort  | default 514  | quote }}
+  ACE_INGEST__PROTOCOLS__SYSLOG__TCP_PORT:  {{ .Values.protocols.syslog.tcpPort  | default 6514 | quote }}
+
+  # Modbus
+  ACE_INGEST__PROTOCOLS__MODBUS__ENABLED:      {{ .Values.protocols.modbus.enabled | quote }}
+  ACE_INGEST__PROTOCOLS__MODBUS__LISTEN_PORT:  {{ .Values.protocols.modbus.port | default 502 | quote }}
+
+  # CloudTrail
+  ACE_INGEST__PROTOCOLS__CLOUDTRAIL__ENABLED: {{ .Values.protocols.cloudtrail.enabled | quote }}
+  {{- if .Values.protocols.cloudtrail.sqsQueueUrl }}
+  ACE_INGEST__PROTOCOLS__CLOUDTRAIL__SQS_QUEUE_URL: {{ .Values.protocols.cloudtrail.sqsQueueUrl | quote }}
+  {{- end }}
+  ACE_INGEST__PROTOCOLS__CLOUDTRAIL__AWS_REGION: {{ .Values.protocols.cloudtrail.awsRegion | default "us-east-1" | quote }}
+
+  # WEF
+  ACE_INGEST__PROTOCOLS__WEF__ENABLED: {{ .Values.protocols.wef.enabled | quote }}
+  ACE_INGEST__PROTOCOLS__WEF__PORT:    {{ .Values.protocols.wef.port | default 5985 | quote }}
+
+  # K8s Audit
+  ACE_INGEST__PROTOCOLS__K8S_AUDIT__ENABLED: {{ .Values.protocols.k8sAudit.enabled | quote }}
+  ACE_INGEST__PROTOCOLS__K8S_AUDIT__PORT:    {{ .Values.protocols.k8sAudit.port | default 9443 | quote }}

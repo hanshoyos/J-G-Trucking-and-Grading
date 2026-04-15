@@ -1,0 +1,103 @@
+replicaCount: 2
+
+image:
+  repository: "ghcr.io/ace-platform/ace-ingest"
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+kafkaBrokers: "ace-kafka:9092"
+tenantId: "default"
+collectorId: ""
+
+protocols:
+  syslog:
+    enabled: true
+    udpPort: 514
+    tcpPort: 6514
+  modbus:
+    enabled: false
+    port: 502
+  cloudtrail:
+    enabled: false
+    sqsQueueUrl: ""
+    awsRegion: "us-east-1"
+  wef:
+    enabled: false
+    port: 5985
+  k8sAudit:
+    enabled: false
+    port: 9443
+    webhookToken: ""
+
+kafka:
+  rawTopic: "ace.events.raw"
+  queueBufferingMaxMessages: 1000000
+  acks: "1"
+  sasl:
+    enabled: false
+    mechanism: "PLAIN"
+    secret: ""
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "512Mi"
+  limits:
+    cpu: "4"
+    memory: "4Gi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  healthPort: 8080
+  syslogTCPPort: 6514
+  syslogUDPPort: 514
+  wefPort: 5985
+  k8sAuditPort: 9443
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ace-ingest
+          topologyKey: kubernetes.io/hostname
+
+tolerations: []
+nodeSelector: {}

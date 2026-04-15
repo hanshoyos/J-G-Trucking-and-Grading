@@ -1,0 +1,74 @@
+---
+# Example IngestPipeline for a typical enterprise deployment.
+# Enables syslog (IT), Modbus/TCP (OT), and K8s audit log ingestion.
+apiVersion: ace.platform.io/v1alpha1
+kind: IngestPipeline
+metadata:
+  name: enterprise-pipeline
+  namespace: ace-ingest
+  labels:
+    ace.platform.io/environment: production
+spec:
+  tenantId: "acme-corp"
+  collectorId: "collector-prod-01"
+
+  kafkaBrokers: "ace-kafka.ace-storage.svc.cluster.local:9092"
+  kafkaTopicRaw: "ace.events.raw"
+
+  replicas: 3
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "4"
+      memory: "4Gi"
+
+  protocols:
+    # Receive syslog from all network devices and servers.
+    syslog:
+      enabled: true
+      udpPort: 514
+      tcpPort: 6514
+
+    # Passively tap Modbus/TCP traffic on the OT network segment.
+    modbus:
+      enabled: true
+      port: 502
+
+    # Receive Kubernetes audit events as webhook.
+    k8sAudit:
+      enabled: true
+      port: 9443
+      webhookTokenSecretRef:
+        name: k8s-audit-webhook-token
+---
+# Example for a cloud-focused pipeline (AWS CloudTrail + WEF).
+apiVersion: ace.platform.io/v1alpha1
+kind: IngestPipeline
+metadata:
+  name: cloud-pipeline
+  namespace: ace-ingest
+spec:
+  tenantId: "acme-corp"
+  collectorId: "collector-cloud-aws"
+
+  kafkaBrokers: "ace-kafka.ace-storage.svc.cluster.local:9092"
+
+  replicas: 2
+
+  protocols:
+    # Receive AWS CloudTrail logs via SQS notifications.
+    cloudTrail:
+      enabled: true
+      sqsQueueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/ace-cloudtrail"
+      awsRegion: "us-east-1"
+      pollIntervalSeconds: 10
+      # IAM role injected via IRSA (IAM Roles for Service Accounts).
+      iamRoleArn: "arn:aws:iam::123456789012:role/ace-cloudtrail-reader"
+
+    # Receive Windows Event Forwarding from domain-joined workstations.
+    wef:
+      enabled: true
+      port: 5985

@@ -1,0 +1,225 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+  name: ingestpipelines.ace.platform.io
+spec:
+  group: ace.platform.io
+  names:
+    kind: IngestPipeline
+    listKind: IngestPipelineList
+    plural: ingestpipelines
+    singular: ingestpipeline
+    shortNames:
+      - aip
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .status.readyReplicas
+          name: Ready
+          type: integer
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: IngestPipeline declaratively configures one or more ace-ingest
+            Deployments and the protocol handlers they run.
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                collectorId:
+                  description: CollectorID is a human-readable label for this collector instance.
+                  type: string
+                imageTag:
+                  description: ImageTag overrides the ace-ingest container image tag.
+                  type: string
+                kafkaBrokers:
+                  description: KafkaBrokers is the comma-separated list of Kafka bootstrap brokers.
+                  minLength: 1
+                  type: string
+                kafkaSasl:
+                  description: KafkaSASL holds optional SASL authentication config.
+                  properties:
+                    mechanism:
+                      type: string
+                    secretRef:
+                      properties:
+                        name:
+                          type: string
+                      type: object
+                  required:
+                    - mechanism
+                    - secretRef
+                  type: object
+                kafkaTopicRaw:
+                  default: ace.events.raw
+                  description: KafkaTopicRaw is the topic raw events are produced to.
+                  type: string
+                protocols:
+                  description: Protocols enables/configures individual protocol handlers.
+                  properties:
+                    cloudTrail:
+                      properties:
+                        awsRegion:
+                          default: us-east-1
+                          type: string
+                        enabled:
+                          default: false
+                          type: boolean
+                        iamRoleArn:
+                          type: string
+                        pollIntervalSeconds:
+                          default: 10
+                          format: int32
+                          type: integer
+                        sqsQueueUrl:
+                          type: string
+                      required:
+                        - sqsQueueUrl
+                      type: object
+                    k8sAudit:
+                      properties:
+                        enabled:
+                          default: false
+                          type: boolean
+                        port:
+                          default: 9443
+                          format: int32
+                          type: integer
+                        webhookTokenSecretRef:
+                          properties:
+                            name:
+                              type: string
+                          type: object
+                      type: object
+                    modbus:
+                      properties:
+                        enabled:
+                          default: false
+                          type: boolean
+                        port:
+                          default: 502
+                          format: int32
+                          type: integer
+                      type: object
+                    syslog:
+                      properties:
+                        enabled:
+                          default: true
+                          type: boolean
+                        tcpPort:
+                          default: 6514
+                          format: int32
+                          type: integer
+                        udpPort:
+                          default: 514
+                          format: int32
+                          type: integer
+                      type: object
+                    wef:
+                      properties:
+                        enabled:
+                          default: false
+                          type: boolean
+                        port:
+                          default: 5985
+                          format: int32
+                          type: integer
+                      type: object
+                  type: object
+                replicas:
+                  default: 1
+                  format: int32
+                  maximum: 100
+                  minimum: 1
+                  type: integer
+                resources:
+                  description: Resources sets resource requests/limits for the ingest pods.
+                  properties:
+                    limits:
+                      additionalProperties:
+                        anyOf:
+                          - type: integer
+                          - type: string
+                        x-kubernetes-int-or-string: true
+                      type: object
+                    requests:
+                      additionalProperties:
+                        anyOf:
+                          - type: integer
+                          - type: string
+                        x-kubernetes-int-or-string: true
+                      type: object
+                  type: object
+                tenantId:
+                  description: TenantID scopes all events produced by this pipeline.
+                  minLength: 1
+                  type: string
+              required:
+                - kafkaBrokers
+                - protocols
+                - tenantId
+              type: object
+            status:
+              properties:
+                conditions:
+                  items:
+                    description: Condition contains details for one aspect of the current state.
+                    properties:
+                      lastTransitionTime:
+                        format: date-time
+                        type: string
+                      message:
+                        type: string
+                      observedGeneration:
+                        format: int64
+                        type: integer
+                      reason:
+                        type: string
+                      status:
+                        type: string
+                      type:
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                observedGeneration:
+                  format: int64
+                  type: integer
+                phase:
+                  enum:
+                    - Pending
+                    - Running
+                    - Degraded
+                    - Failed
+                  type: string
+                readyReplicas:
+                  format: int32
+                  type: integer
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        scale:
+          specReplicasPath: .spec.replicas
+          statusReplicasPath: .status.readyReplicas
+        status: {}

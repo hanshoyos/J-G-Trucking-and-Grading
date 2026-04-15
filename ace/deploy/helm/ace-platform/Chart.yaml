@@ -1,0 +1,42 @@
+apiVersion: v2
+name: ace-platform
+description: |
+  ACE — Adaptive Cyber Exposure Platform.
+  Unified IT/OT/Cloud threat monitoring, correlation, and response.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - cybersecurity
+  - siem
+  - xdr
+  - ot-security
+  - ics-security
+  - threat-intelligence
+  - mitre-attack
+
+maintainers:
+  - name: ACE Platform Team
+    email: platform@ace.example
+
+dependencies:
+  - name: ace-deps
+    version: "0.1.0"
+    repository: "file://charts/ace-deps"
+    condition: ace-deps.enabled
+
+  - name: ace-operator
+    version: "0.1.0"
+    repository: "file://charts/ace-operator"
+    condition: ace-operator.enabled
+
+  - name: ace-ingest
+    version: "0.1.0"
+    repository: "file://charts/ace-ingest"
+    condition: ace-ingest.enabled
+
+  - name: ace-normalize
+    version: "0.1.0"
+    repository: "file://charts/ace-normalize"
+    condition: ace-normalize.enabled

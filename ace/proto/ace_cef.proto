@@ -1,0 +1,175 @@
+syntax = "proto3";
+
+package ace.v1;
+
+option go_package = "github.com/ace-platform/ace/proto/gen/go/ace/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+// ─────────────────────────────────────────────────────────────
+//  Enumerations
+// ─────────────────────────────────────────────────────────────
+
+// Top-level security domain the event originated in.
+enum SourceDomain {
+  SOURCE_DOMAIN_UNSPECIFIED = 0;
+  SOURCE_DOMAIN_IT          = 1;  // Enterprise IT
+  SOURCE_DOMAIN_OT          = 2;  // Operational Technology / ICS / SCADA
+  SOURCE_DOMAIN_CLOUD       = 3;  // Public cloud (AWS / Azure / GCP)
+  SOURCE_DOMAIN_HYBRID      = 4;  // Spans more than one domain
+}
+
+// Event severity aligned with CVSS / SIEM convention.
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_INFO        = 1;
+  SEVERITY_LOW         = 2;
+  SEVERITY_MEDIUM      = 3;
+  SEVERITY_HIGH        = 4;
+  SEVERITY_CRITICAL    = 5;
+}
+
+// Cloud provider originating the event.
+enum CloudProvider {
+  CLOUD_PROVIDER_UNSPECIFIED = 0;
+  CLOUD_PROVIDER_AWS         = 1;
+  CLOUD_PROVIDER_AZURE       = 2;
+  CLOUD_PROVIDER_GCP         = 3;
+}
+
+// Outcome of the observed action.
+enum Outcome {
+  OUTCOME_UNSPECIFIED = 0;
+  OUTCOME_SUCCESS     = 1;
+  OUTCOME_FAILURE     = 2;
+  OUTCOME_ATTEMPT     = 3;
+  OUTCOME_UNKNOWN     = 4;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  MITRE ATT&CK mapping types
+// ─────────────────────────────────────────────────────────────
+
+// Which ATT&CK framework the technique belongs to.
+enum MitreFramework {
+  MITRE_FRAMEWORK_UNSPECIFIED  = 0;
+  MITRE_FRAMEWORK_ENTERPRISE   = 1;  // ATT&CK Enterprise v16
+  MITRE_FRAMEWORK_ICS          = 2;  // ATT&CK for ICS v3
+  MITRE_FRAMEWORK_MOBILE       = 3;
+}
+
+message MitreMapping {
+  MitreFramework framework    = 1;
+  string         technique_id = 2;  // e.g. "T1566.001" or "T0839"
+  string         technique    = 3;  // Human-readable name
+  string         tactic       = 4;  // e.g. "initial-access"
+  float          confidence   = 5;  // 0.0 – 1.0
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Core ACE Common Event Format (ACE-CEF)
+// ─────────────────────────────────────────────────────────────
+
+// NormalizedFields holds domain-agnostic and domain-specific
+// parsed values.  All fields are optional; populate what is
+// available from the raw event.
+message NormalizedFields {
+  // Network layer
+  string src_ip    = 1;
+  string dst_ip    = 2;
+  uint32 src_port  = 3;
+  uint32 dst_port  = 4;
+  string protocol  = 5;  // "tcp", "udp", "modbus-tcp", etc.
+
+  // Identity / process
+  string user         = 10;
+  string process      = 11;
+  string command      = 12;
+  string file_path    = 13;
+  string hash_sha256  = 14;
+
+  // Action semantics
+  string  action   = 20;  // "authentication", "file-write", "plc-write" …
+  Outcome outcome  = 21;
+
+  // ── OT-specific ──────────────────────────────────────────
+  string plc_address      = 30;
+  uint32 function_code    = 31;  // Modbus FC, DNP3 function …
+  string register_value   = 32;  // after write/read
+  string hmi_action       = 33;
+  string setpoint_change  = 34;  // "from:100.0 to:105.5 unit:psi"
+  string firmware_version = 35;
+  uint32 purdue_level     = 36;  // 0 (field) … 5 (enterprise)
+
+  // ── Cloud-specific ───────────────────────────────────────
+  CloudProvider cloud_provider    = 40;
+  string        cloud_account_id  = 41;
+  string        cloud_region      = 42;
+  string        api_call          = 43;  // e.g. "s3:GetObject"
+  string        iam_principal     = 44;
+  string        resource_arn      = 45;
+  string        cloud_request_id  = 46;
+
+  // ── DNS / HTTP ───────────────────────────────────────────
+  string dns_query       = 50;
+  string http_method     = 51;
+  string http_url        = 52;
+  uint32 http_status     = 53;
+  string http_user_agent = 54;
+
+  // ── GeoIP enrichment ─────────────────────────────────────
+  string src_country  = 60;
+  string src_asn      = 61;
+  string dst_country  = 62;
+  string dst_asn      = 63;
+
+  // Catch-all for protocol-specific extras.
+  google.protobuf.Struct extra = 99;
+}
+
+// The canonical ACE event — every pipeline stage produces/consumes this.
+message AceEvent {
+  // ── Identity ─────────────────────────────────────────────
+  string event_id   = 1;   // UUIDv7 (time-sortable)
+  string tenant_id  = 2;   // Multi-tenancy scope
+
+  // ── Timestamps ───────────────────────────────────────────
+  google.protobuf.Timestamp timestamp_source = 3;  // When the event occurred
+  google.protobuf.Timestamp timestamp_ingest = 4;  // When ACE received it
+
+  // ── Classification ────────────────────────────────────────
+  SourceDomain source_domain = 5;
+  string       source_type   = 6;  // "syslog_rfc5424", "modbus_tcp", "cloudtrail", …
+  Severity     severity      = 7;
+
+  // ── Asset linkage ─────────────────────────────────────────
+  string source_asset_id = 8;   // FK → ace-asset-inventory
+
+  // ── Collector provenance ──────────────────────────────────
+  string collector_id      = 9;
+  string collector_version = 10;
+
+  // ── Parsed content ────────────────────────────────────────
+  NormalizedFields normalized = 11;
+
+  // ── Raw payload (zstd-compressed original bytes) ──────────
+  bytes raw_event = 12;
+
+  // ── Intelligence overlay ──────────────────────────────────
+  repeated MitreMapping mitre_mappings = 13;
+  float                 threat_score   = 14;  // 0.0 – 100.0
+
+  // ── Tagging ───────────────────────────────────────────────
+  repeated string tags = 15;
+
+  // ── Correlation linkage ───────────────────────────────────
+  string session_id = 16;  // Set by ace-correlate when grouped into a ThreatSession
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Batch wrapper (Kafka message value)
+// ─────────────────────────────────────────────────────────────
+message AceEventBatch {
+  repeated AceEvent events = 1;
+}

@@ -1,0 +1,45 @@
+[package]
+name    = "ace-normalize"
+version = "0.1.0"
+edition = "2021"
+description = "ACE normalization pipeline — raw events → ACE-CEF"
+
+[[bin]]
+name = "ace-normalize"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace-shared
+tokio              = { workspace = true }
+tokio-util         = { workspace = true }
+axum               = { workspace = true }
+tower-http         = { workspace = true }
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+serde_bytes        = { workspace = true }
+bytes              = { workspace = true }
+prost              = { workspace = true }
+prost-types        = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror          = { workspace = true }
+anyhow             = { workspace = true }
+config             = { workspace = true }
+uuid               = { workspace = true }
+zstd               = { workspace = true }
+async-trait        = { workspace = true }
+chrono             = { workspace = true }
+rdkafka            = { workspace = true }
+
+# GeoIP enrichment
+maxminddb = "0.23"
+ipnet     = { workspace = true }
+
+# XML parsing (WEF events are XML)
+quick-xml = { version = "0.36", features = ["serialize"] }
+
+# Hostname for collector_id default
+hostname = "0.4"
+
+[build-dependencies]
+prost-build = "0.13"
