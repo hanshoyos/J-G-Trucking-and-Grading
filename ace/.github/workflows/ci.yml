@@ -198,6 +198,8 @@ jobs:
           - ace-mitre-engine
           - ace-threat-intel
           - ace-asset-inventory
+          - ace-api-gateway
+          - ace-dashboard
     steps:
       - uses: actions/checkout@v4
 

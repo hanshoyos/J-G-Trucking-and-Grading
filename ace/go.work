@@ -5,4 +5,5 @@ use (
     ./services/ace-mitre-engine
     ./services/ace-threat-intel
     ./services/ace-asset-inventory
+    ./services/ace-api-gateway
 )

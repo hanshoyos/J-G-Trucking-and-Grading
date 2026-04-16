@@ -42,7 +42,38 @@ ace/
 
 ---
 
-## Quick Start
+## Quick Start (Mac — Docker Compose)
+
+Requires Docker Desktop for Mac.
+
+```bash
+cd ace
+
+# Start infra + all Go services + dashboard (~5 min first build)
+docker compose up
+
+# Open the dashboard
+open http://localhost:3000
+```
+
+To also start the Rust ingestion pipeline (adds 15-20 min first build):
+
+```bash
+docker compose --profile rust up
+```
+
+Individual service logs:
+```bash
+docker compose logs -f ace-dashboard
+docker compose logs -f ace-api-gateway
+```
+
+Stop everything: `docker compose down`
+Wipe volumes: `docker compose down -v`
+
+---
+
+## Quick Start (Kubernetes)
 
 ```bash
 # 1. Create local Kind cluster and check prerequisites
@@ -80,6 +111,8 @@ REGISTRY=my-registry.example.com TAG=dev PUSH=false ./scripts/build-all.sh
 | ace-mitre-engine     | 8090  | HTTP     | ATT&CK REST API + heatmap            |
 | ace-threat-intel     | 8091  | HTTP     | IOC lookup API + feed status         |
 | ace-asset-inventory  | 8092  | HTTP     | Asset CMDB REST API                  |
+| ace-api-gateway      | 8000  | HTTP     | Aggregated API + SSE alerts stream   |
+| ace-dashboard        | 3000  | HTTP     | Next.js 15 web UI                    |
 
 ---
 
@@ -136,5 +169,5 @@ REGISTRY=my-registry.example.com TAG=dev PUSH=false ./scripts/build-all.sh
 | 1 ✅  | Foundation                                | ace-ingest, ace-normalize, ace-operator, Helm |
 | 2 ✅  | Intelligence                              | ace-correlate, ace-mitre-engine, ace-threat-intel, ace-asset-inventory |
 | 3     | Analysis                                  | ace-pcap, ace-vuln-assess, ONNX anomaly detection |
-| 4     | Interface                                 | ace-dashboard (Next.js 15), ace-api-gateway, ace-respond |
+| 4 ✅  | Interface                                 | ace-dashboard (Next.js 15), ace-api-gateway                |
 | 5     | Hardening                                 | Istio mTLS, RBAC, load testing, security audit |

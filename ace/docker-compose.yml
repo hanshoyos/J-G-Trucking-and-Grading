@@ -1,0 +1,221 @@
+# ACE Platform — local development stack
+#
+# Usage:
+#   docker compose up                          # infra + all Go services + dashboard
+#   docker compose --profile rust up           # also include Rust pipeline services
+#   docker compose --profile rust --profile go up  # full stack
+#   docker compose logs -f ace-dashboard
+#
+# First run: `docker compose up` builds and starts everything in ~5 min.
+# Adding Rust services (--profile rust) needs 15-20 min first compile.
+#
+# Open http://localhost:3000 when ready.
+
+services:
+
+  # ── Infrastructure (always started) ─────────────────────────
+
+  kafka:
+    image: bitnami/kafka:3.7
+    environment:
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_NUM_PARTITIONS: "4"
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: "1"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    ports:
+      - "9092:9092"
+      - "9094:9094"   # direct host access for local tooling
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    volumes:
+      - kafka_data:/bitnami/kafka
+
+  postgresql:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ace
+      POSTGRES_PASSWORD: ace
+      POSTGRES_DB: ace
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ace"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Phase 1 — Foundation (Rust, opt-in via --profile rust) ───
+  # These take 15-20 min on first build. Skip for initial testing.
+
+  ace-ingest:
+    build:
+      context: ./services/ace-ingest
+    profiles: ["rust"]
+    ports:
+      - "8080:8080"
+      - "514:514/udp"
+    environment:
+      ACE_INGEST__KAFKA__BROKERS: kafka:9092
+      ACE_INGEST__TENANT_ID: default
+      ACE_INGEST__PROTOCOLS__SYSLOG__ENABLED: "true"
+      ACE_INGEST__PROTOCOLS__MODBUS__ENABLED: "false"
+      ACE_INGEST__PROTOCOLS__CLOUDTRAIL__ENABLED: "false"
+      ACE_INGEST__PROTOCOLS__WEF__ENABLED: "false"
+      ACE_INGEST__PROTOCOLS__K8S_AUDIT__ENABLED: "false"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ace-normalize:
+    build:
+      context: ./services/ace-normalize
+    profiles: ["rust"]
+    ports:
+      - "8081:8081"
+    environment:
+      ACE_NORMALIZE__KAFKA__BROKERS: kafka:9092
+      ACE_NORMALIZE__KAFKA__RAW_TOPIC: ace.events.raw
+      ACE_NORMALIZE__KAFKA__NORMALIZED_TOPIC: ace.events.normalized
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ace-correlate:
+    build:
+      context: ./services/ace-correlate
+    profiles: ["rust"]
+    ports:
+      - "8082:8082"
+    environment:
+      ACE_CORRELATE__KAFKA__BROKERS: kafka:9092
+      ACE_CORRELATE__KAFKA__NORMALIZED_TOPIC: ace.events.normalized
+      ACE_CORRELATE__KAFKA__ENRICHED_TOPIC: ace.events.enriched
+      ACE_CORRELATE__KAFKA__ALERTS_TOPIC: ace.alerts
+      ACE_CORRELATE__KAFKA__CONSUMER_GROUP: ace-correlate
+      ACE_CORRELATE__TENANT_ID: default
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Phase 2 — Intelligence (Go, started by default) ──────────
+
+  ace-mitre-engine:
+    build:
+      context: ./services/ace-mitre-engine
+    ports:
+      - "8090:8090"
+    environment:
+      ACE_MITRE_PORT: "8090"
+      ACE_MITRE_DATABASE_URL: postgres://ace:ace@postgresql:5432/ace_mitre?sslmode=disable
+      ACE_MITRE_SYNC_ON_START: "false"
+      ACE_MITRE_SYNC_INTERVAL_HOURS: "24"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ace-threat-intel:
+    build:
+      context: ./services/ace-threat-intel
+    ports:
+      - "8091:8091"
+    environment:
+      ACE_THREAT_INTEL_PORT: "8091"
+      ACE_THREAT_INTEL_REDIS_ADDR: redis:6379
+      ACE_THREAT_INTEL_FEEDS_CISA_KEV_ENABLED: "true"
+      ACE_THREAT_INTEL_FEEDS_ABUSECH_ENABLED: "true"
+      ACE_THREAT_INTEL_FEEDS_OTX_ENABLED: "false"
+      ACE_THREAT_INTEL_FEEDS_TAXII_ENABLED: "false"
+      ACE_THREAT_INTEL_REFRESH_INTERVAL_SECS: "21600"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ace-asset-inventory:
+    build:
+      context: ./services/ace-asset-inventory
+    ports:
+      - "8092:8092"
+    environment:
+      ACE_ASSET_INVENTORY_PORT: "8092"
+      ACE_ASSET_INVENTORY_DATABASE_URL: postgres://ace:ace@postgresql:5432/ace_assets?sslmode=disable
+      ACE_ASSET_INVENTORY_KAFKA_BROKERS: kafka:9092
+      ACE_ASSET_INVENTORY_KAFKA_NORMALIZED_TOPIC: ace.events.normalized
+      ACE_ASSET_INVENTORY_KAFKA_CONSUMER_GROUP: ace-asset-inventory
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Phase 4 — Interface (Go, started by default) ─────────────
+
+  ace-api-gateway:
+    build:
+      context: ./services/ace-api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      ACE_GATEWAY_PORT: "8000"
+      ACE_GATEWAY_MITRE_URL: http://ace-mitre-engine:8090
+      ACE_GATEWAY_THREAT_INTEL_URL: http://ace-threat-intel:8091
+      ACE_GATEWAY_ASSET_INVENTORY_URL: http://ace-asset-inventory:8092
+      ACE_GATEWAY_CORRELATE_URL: http://ace-correlate:8082
+      ACE_GATEWAY_KAFKA_BROKERS: kafka:9092
+      ACE_GATEWAY_ALERTS_TOPIC: ace.alerts
+    depends_on:
+      kafka:
+        condition: service_healthy
+      ace-mitre-engine:
+        condition: service_started
+      ace-threat-intel:
+        condition: service_started
+      ace-asset-inventory:
+        condition: service_started
+    restart: unless-stopped
+
+  ace-dashboard:
+    build:
+      context: ./services/ace-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      API_URL: http://ace-api-gateway:8000
+      NODE_ENV: production
+    depends_on:
+      - ace-api-gateway
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+  postgres_data:
