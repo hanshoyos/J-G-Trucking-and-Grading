@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "services/ace-ingest",
     "services/ace-normalize",
+    "services/ace-correlate",
 ]
 
 [workspace.dependencies]
@@ -67,6 +68,15 @@ ipnet = { version = "2", features = ["serde"] }
 
 # Byte-vector serde helper (needed for payload fields)
 serde_bytes = "0.11"
+
+# Concurrent hashmap (lock-free reads for session state)
+dashmap = { version = "6", features = ["serde"] }
+
+# Ordered map (rule registry maintains insertion order)
+indexmap = { version = "2", features = ["serde"] }
+
+# Lazy/one-time initialization
+once_cell = "1"
 
 [profile.release]
 opt-level     = 3

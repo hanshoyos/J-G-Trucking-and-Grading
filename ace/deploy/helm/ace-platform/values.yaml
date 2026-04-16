@@ -220,3 +220,197 @@ ace-normalize:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
+
+# ─────────────────────────────────────────────────────────────
+#  ACE Correlate  (Phase 2 — streaming correlation engine)
+# ─────────────────────────────────────────────────────────────
+
+ace-correlate:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-correlate"
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  kafkaBrokers: "ace-kafka:9092"
+  tenantId: "default"
+
+  kafka:
+    normalizedTopic: "ace.events.normalized"
+    enrichedTopic: "ace.events.enriched"
+    alertsTopic: "ace.alerts"
+    consumerGroup: "ace-correlate"
+
+  engine:
+    # Size of the in-memory sliding window store (max concurrent rule windows).
+    maxSessions: 10000
+    # Garbage-collect stale windows every N seconds.
+    gcIntervalSecs: 60
+
+  port: 8082
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 16
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: ace-correlate
+            topologyKey: kubernetes.io/hostname
+
+# ─────────────────────────────────────────────────────────────
+#  ACE MITRE Engine  (Phase 2 — ATT&CK technique database + heatmap)
+# ─────────────────────────────────────────────────────────────
+
+ace-mitre-engine:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-mitre-engine"
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  port: 8090
+
+  database:
+    url: "postgres://ace:ace@ace-postgresql:5432/ace_mitre?sslmode=disable"
+
+  # Fetch and load STIX bundles from MITRE CTI GitHub on startup.
+  # Disable for air-gapped deployments; prime the DB via a Job instead.
+  syncOnStart: false
+  syncIntervalHours: 24
+
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  serviceAccount:
+    create: true
+    name: ""
+
+# ─────────────────────────────────────────────────────────────
+#  ACE Threat Intel  (Phase 2 — IOC aggregation and cache)
+# ─────────────────────────────────────────────────────────────
+
+ace-threat-intel:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-threat-intel"
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  port: 8091
+
+  redis:
+    addr: "ace-redis-master:6379"
+    password: ""
+    db: 0
+    # TTL for cached IOC entries (seconds).
+    iocTtlSecs: 86400
+
+  feeds:
+    cisaKev:
+      enabled: true
+      # Override URL for air-gapped deployments.
+      url: ""
+    otx:
+      enabled: false
+      apiKey: ""
+    abusech:
+      enabled: true
+    taxii:
+      enabled: false
+      url: ""
+      username: ""
+      password: ""
+
+  # Feed refresh interval in seconds (default 6 h).
+  refreshIntervalSecs: 21600
+
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  serviceAccount:
+    create: true
+    name: ""
+
+# ─────────────────────────────────────────────────────────────
+#  ACE Asset Inventory  (Phase 2 — unified IT/OT/Cloud CMDB)
+# ─────────────────────────────────────────────────────────────
+
+ace-asset-inventory:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-asset-inventory"
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  port: 8092
+
+  database:
+    url: "postgres://ace:ace@ace-postgresql:5432/ace_assets?sslmode=disable"
+
+  kafka:
+    brokers: "ace-kafka:9092"
+    normalizedTopic: "ace.events.normalized"
+    consumerGroup: "ace-asset-inventory"
+
+  purdue:
+    # Override Purdue level assignments by CIDR subnet.
+    # Format: list of {cidr, level} objects.
+    subnetOverrides: []
+    # Example:
+    # - cidr: "10.100.0.0/16"
+    #   level: 2
+
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  serviceAccount:
+    create: true
+    name: ""

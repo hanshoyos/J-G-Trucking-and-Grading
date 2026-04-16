@@ -2,4 +2,7 @@ go 1.22
 
 use (
     ./services/ace-operator
+    ./services/ace-mitre-engine
+    ./services/ace-threat-intel
+    ./services/ace-asset-inventory
 )

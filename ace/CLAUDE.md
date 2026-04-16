@@ -18,7 +18,11 @@ ace/
 ├── services/
 │   ├── ace-ingest/             # Rust — universal log ingestion gateway
 │   ├── ace-normalize/          # Rust — ACE-CEF normalization pipeline
-│   └── ace-operator/           # Go   — Kubernetes operator (CRDs)
+│   ├── ace-operator/           # Go   — Kubernetes operator (CRDs)
+│   ├── ace-correlate/          # Rust — streaming correlation engine      [Phase 2]
+│   ├── ace-mitre-engine/       # Go   — MITRE ATT&CK DB + heatmap API     [Phase 2]
+│   ├── ace-threat-intel/       # Go   — IOC feed aggregator + Redis cache  [Phase 2]
+│   └── ace-asset-inventory/    # Go   — IT/OT/Cloud CMDB + Purdue model   [Phase 2]
 ├── deploy/helm/ace-platform/   # Helm umbrella chart
 │   ├── Chart.yaml
 │   ├── values.yaml             # Single master config file
@@ -26,6 +30,10 @@ ace/
 │       ├── ace-ingest/
 │       ├── ace-normalize/
 │       ├── ace-operator/
+│       ├── ace-correlate/      # [Phase 2]
+│       ├── ace-mitre-engine/   # [Phase 2]
+│       ├── ace-threat-intel/   # [Phase 2]
+│       ├── ace-asset-inventory/ # [Phase 2]
 │       └── ace-deps/           # Kafka, ClickHouse, Redis, PG, MinIO
 ├── examples/                   # Sample Kubernetes manifests
 ├── scripts/                    # Dev-setup and build helper scripts
@@ -57,28 +65,32 @@ REGISTRY=my-registry.example.com TAG=dev PUSH=false ./scripts/build-all.sh
 
 ## Service Ports
 
-| Service       | Port  | Protocol | Purpose                        |
-|---------------|-------|----------|--------------------------------|
-| ace-ingest    | 8080  | HTTP     | Health (/healthz, /readyz, /metrics) |
-| ace-ingest    | 514   | UDP      | Syslog                         |
-| ace-ingest    | 6514  | TCP      | Syslog (TLS)                   |
-| ace-ingest    | 502   | TCP      | Modbus/TCP passive tap         |
-| ace-ingest    | 5985  | TCP      | Windows Event Forwarding       |
-| ace-ingest    | 9443  | TCP      | Kubernetes audit webhook       |
-| ace-normalize | 8081  | HTTP     | Health                         |
-| ace-operator  | 8080  | HTTP     | Prometheus metrics             |
-| ace-operator  | 8081  | HTTP     | Health probes                  |
+| Service              | Port  | Protocol | Purpose                              |
+|----------------------|-------|----------|--------------------------------------|
+| ace-ingest           | 8080  | HTTP     | Health (/healthz, /readyz, /metrics) |
+| ace-ingest           | 514   | UDP      | Syslog                               |
+| ace-ingest           | 6514  | TCP      | Syslog (TLS)                         |
+| ace-ingest           | 502   | TCP      | Modbus/TCP passive tap               |
+| ace-ingest           | 5985  | TCP      | Windows Event Forwarding             |
+| ace-ingest           | 9443  | TCP      | Kubernetes audit webhook             |
+| ace-normalize        | 8081  | HTTP     | Health                               |
+| ace-operator         | 8080  | HTTP     | Prometheus metrics                   |
+| ace-operator         | 8081  | HTTP     | Health probes                        |
+| ace-correlate        | 8082  | HTTP     | Health + correlation metrics         |
+| ace-mitre-engine     | 8090  | HTTP     | ATT&CK REST API + heatmap            |
+| ace-threat-intel     | 8091  | HTTP     | IOC lookup API + feed status         |
+| ace-asset-inventory  | 8092  | HTTP     | Asset CMDB REST API                  |
 
 ---
 
 ## Kafka Topics
 
-| Topic                   | Producer      | Consumer        | Purpose                    |
-|-------------------------|---------------|-----------------|----------------------------|
-| `ace.events.raw`        | ace-ingest    | ace-normalize   | Pre-normalization events   |
-| `ace.events.normalized` | ace-normalize | ace-correlate   | ACE-CEF events             |
-| `ace.events.enriched`   | ace-correlate | ace-dashboard   | IOC-enriched events        |
-| `ace.alerts`            | ace-correlate | ace-respond     | Correlated threat alerts   |
+| Topic                   | Producer      | Consumer                          | Purpose                    |
+|-------------------------|---------------|-----------------------------------|----------------------------|
+| `ace.events.raw`        | ace-ingest    | ace-normalize                     | Pre-normalization events   |
+| `ace.events.normalized` | ace-normalize | ace-correlate, ace-asset-inventory | ACE-CEF events             |
+| `ace.events.enriched`   | ace-correlate | ace-dashboard                     | IOC-enriched events        |
+| `ace.alerts`            | ace-correlate | ace-respond                       | Correlated threat alerts   |
 
 ---
 
@@ -121,8 +133,8 @@ REGISTRY=my-registry.example.com TAG=dev PUSH=false ./scripts/build-all.sh
 
 | Phase | Focus                                     | Services                              |
 |-------|-------------------------------------------|---------------------------------------|
-| 1 ✅  | Foundation (this branch)                  | ace-ingest, ace-normalize, ace-operator, Helm |
-| 2     | Intelligence                              | ace-correlate, ace-mitre-engine, ace-threat-intel, ace-asset-inventory |
+| 1 ✅  | Foundation                                | ace-ingest, ace-normalize, ace-operator, Helm |
+| 2 ✅  | Intelligence                              | ace-correlate, ace-mitre-engine, ace-threat-intel, ace-asset-inventory |
 | 3     | Analysis                                  | ace-pcap, ace-vuln-assess, ONNX anomaly detection |
 | 4     | Interface                                 | ace-dashboard (Next.js 15), ace-api-gateway, ace-respond |
 | 5     | Hardening                                 | Istio mTLS, RBAC, load testing, security audit |

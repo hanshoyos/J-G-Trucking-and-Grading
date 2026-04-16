@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ace-correlate.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ace-correlate.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ace-correlate.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ace-correlate.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ace-correlate.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ace-correlate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: ACE_CORRELATE__TENANT_ID
+              value: {{ .Values.tenantId | quote }}
+            - name: ACE_CORRELATE__KAFKA__BROKERS
+              value: {{ .Values.kafkaBrokers | quote }}
+            - name: ACE_CORRELATE__KAFKA__NORMALIZED_TOPIC
+              value: {{ .Values.kafka.normalizedTopic | quote }}
+            - name: ACE_CORRELATE__KAFKA__ENRICHED_TOPIC
+              value: {{ .Values.kafka.enrichedTopic | quote }}
+            - name: ACE_CORRELATE__KAFKA__ALERTS_TOPIC
+              value: {{ .Values.kafka.alertsTopic | quote }}
+            - name: ACE_CORRELATE__KAFKA__GROUP_ID
+              value: {{ .Values.kafka.consumerGroup | quote }}
+            - name: ACE_CORRELATE__ENGINE__RULES_DIR
+              value: {{ .Values.engine.rulesDir | quote }}
+            - name: ACE_CORRELATE__ENGINE__WINDOW_GC_INTERVAL_SECS
+              value: {{ .Values.engine.windowGcIntervalSecs | quote }}
+            - name: ACE_CORRELATE__ENGINE__MAX_WINDOW_EVENTS
+              value: {{ .Values.engine.maxWindowEvents | quote }}
+          ports:
+            - name: health
+              containerPort: 8082
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

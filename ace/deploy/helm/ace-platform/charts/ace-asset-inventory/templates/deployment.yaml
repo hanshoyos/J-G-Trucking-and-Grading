@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ace-asset-inventory.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ace-asset-inventory.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ace-asset-inventory.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ace-asset-inventory.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ace-asset-inventory.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ace-asset-inventory
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: ACE_ASSET_INVENTORY_PORT
+              value: {{ .Values.port | quote }}
+            - name: ACE_ASSET_INVENTORY_DATABASE_URL
+              value: {{ .Values.database.url | quote }}
+            - name: ACE_ASSET_INVENTORY_KAFKA_BROKERS
+              value: {{ .Values.kafka.brokers | quote }}
+            - name: ACE_ASSET_INVENTORY_KAFKA_NORMALIZED_TOPIC
+              value: {{ .Values.kafka.normalizedTopic | quote }}
+            - name: ACE_ASSET_INVENTORY_KAFKA_CONSUMER_GROUP
+              value: {{ .Values.kafka.consumerGroup | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

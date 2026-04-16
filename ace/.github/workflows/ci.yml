@@ -133,12 +133,33 @@ jobs:
       - name: Helm lint ace-operator
         run: helm lint ace/deploy/helm/ace-platform/charts/ace-operator
 
+      - name: Helm lint ace-correlate
+        run: helm lint ace/deploy/helm/ace-platform/charts/ace-correlate
+
+      - name: Helm lint ace-mitre-engine
+        run: helm lint ace/deploy/helm/ace-platform/charts/ace-mitre-engine
+
+      - name: Helm lint ace-threat-intel
+        run: helm lint ace/deploy/helm/ace-platform/charts/ace-threat-intel
+
+      - name: Helm lint ace-asset-inventory
+        run: helm lint ace/deploy/helm/ace-platform/charts/ace-asset-inventory
+
       - name: Helm template smoke test (ace-ingest)
         run: |
           helm template smoke \
             ace/deploy/helm/ace-platform/charts/ace-ingest \
             --set kafkaBrokers=kafka:9092 \
             --set tenantId=test \
+            | kubectl apply --dry-run=client -f -
+        env:
+          KUBECONFIG: /dev/null
+
+      - name: Helm template smoke test (ace-correlate)
+        run: |
+          helm template smoke \
+            ace/deploy/helm/ace-platform/charts/ace-correlate \
+            --set kafkaBrokers=kafka:9092 \
             | kubectl apply --dry-run=client -f -
         env:
           KUBECONFIG: /dev/null
@@ -169,7 +190,14 @@ jobs:
     if: github.event_name == 'push'
     strategy:
       matrix:
-        service: [ace-ingest, ace-normalize, ace-operator]
+        service:
+          - ace-ingest
+          - ace-normalize
+          - ace-operator
+          - ace-correlate
+          - ace-mitre-engine
+          - ace-threat-intel
+          - ace-asset-inventory
     steps:
       - uses: actions/checkout@v4
 
