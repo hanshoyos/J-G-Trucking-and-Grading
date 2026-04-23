@@ -1,0 +1,68 @@
+# ACE Kubernetes namespace layout.
+# These namespaces isolate components for RBAC and network policy purposes.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ace-system
+  labels:
+    ace.platform.io/managed: "true"
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ace-ingest
+  labels:
+    ace.platform.io/managed: "true"
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ace-pipeline
+  labels:
+    ace.platform.io/managed: "true"
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ace-analytics
+  labels:
+    ace.platform.io/managed: "true"
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ace-storage
+  labels:
+    ace.platform.io/managed: "true"
+    # Storage namespace does NOT get Istio sidecar injection to avoid
+    # interfering with Kafka / ClickHouse native networking.
+    istio-injection: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ace-ui
+  labels:
+    ace.platform.io/managed: "true"
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ace-respond
+  labels:
+    ace.platform.io/managed: "true"
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ace-observability
+  labels:
+    ace.platform.io/managed: "true"
+    istio-injection: enabled

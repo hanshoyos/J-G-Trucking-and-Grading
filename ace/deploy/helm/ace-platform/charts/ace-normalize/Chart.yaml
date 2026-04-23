@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ace-normalize
+description: ACE normalization pipeline — raw events to ACE-CEF
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

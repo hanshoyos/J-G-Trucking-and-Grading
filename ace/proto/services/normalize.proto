@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package ace.normalize.v1;
+
+option go_package = "github.com/ace-platform/ace/proto/gen/go/ace/normalize/v1";
+
+import "ace_cef.proto";
+
+// Request/response for the gRPC normalize endpoint (used for synchronous
+// testing; the hot path is purely Kafka → Kafka).
+message NormalizeRequest {
+  ace.ingest.v1.RawEvent raw_event = 1;
+}
+
+message NormalizeResponse {
+  ace.v1.AceEvent normalized = 1;
+  repeated string  warnings  = 2;
+}

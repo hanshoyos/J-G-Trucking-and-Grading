@@ -1,0 +1,6 @@
+{{- if .Values.crds.install }}
+# IngestPipeline CRD — installed as part of the Helm chart.
+# To manage CRDs separately from releases, set crds.install=false and
+# apply the manifests in ../../services/ace-operator/config/crd/bases/ manually.
+{{ .Files.Get "crds/ace.platform.io_ingestpipelines.yaml" }}
+{{- end }}

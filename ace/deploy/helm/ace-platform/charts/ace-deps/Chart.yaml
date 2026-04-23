@@ -1,0 +1,40 @@
+apiVersion: v2
+name: ace-deps
+description: |
+  ACE infrastructure dependencies:
+  Kafka (KRaft), ClickHouse, Redis Cluster, PostgreSQL, MinIO, Keycloak.
+  Wraps upstream community Helm charts as sub-charts.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  # Apache Kafka (Bitnami) — KRaft mode, no ZooKeeper.
+  - name: kafka
+    version: "28.3.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: kafka.enabled
+
+  # ClickHouse (Altinity or Bitnami — use Bitnami for simplicity).
+  - name: clickhouse
+    version: "6.2.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: clickhouse.enabled
+
+  # Redis Cluster (Bitnami).
+  - name: redis
+    version: "19.5.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+
+  # PostgreSQL (Bitnami).
+  - name: postgresql
+    version: "15.5.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+
+  # MinIO.
+  - name: minio
+    version: "14.6.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: minio.enabled

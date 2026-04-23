@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ace-operator
+description: ACE Kubernetes operator — manages IngestPipeline and other ACE CRDs
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

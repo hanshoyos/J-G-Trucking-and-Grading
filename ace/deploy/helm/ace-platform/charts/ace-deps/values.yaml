@@ -1,0 +1,266 @@
+# ─────────────────────────────────────────────────────────────
+#  ACE Infrastructure Dependencies
+# ─────────────────────────────────────────────────────────────
+
+# ── Kafka (KRaft mode, no ZooKeeper) ─────────────────────────
+kafka:
+  enabled: true
+
+  # KRaft — no ZooKeeper needed.
+  kraft:
+    enabled: true
+
+  replicaCount: 3
+
+  # ACE uses these topics out of the box.
+  provisioning:
+    enabled: true
+    topics:
+      - name: ace.events.raw
+        partitions: 32
+        replicationFactor: 3
+        config:
+          retention.ms: "604800000"    # 7 days
+          compression.type: "lz4"
+          min.insync.replicas: "2"
+      - name: ace.events.normalized
+        partitions: 32
+        replicationFactor: 3
+        config:
+          retention.ms: "604800000"
+          compression.type: "lz4"
+          min.insync.replicas: "2"
+      - name: ace.events.enriched
+        partitions: 16
+        replicationFactor: 3
+        config:
+          retention.ms: "259200000"    # 3 days (enriched has higher volume)
+      - name: ace.alerts
+        partitions: 8
+        replicationFactor: 3
+        config:
+          retention.ms: "2592000000"   # 30 days for alerts
+
+  persistence:
+    enabled: true
+    size: 100Gi
+
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+
+  # JVM tuning for throughput.
+  heapOpts: "-Xmx4g -Xms4g"
+
+  metrics:
+    kafka:
+      enabled: true
+    jmx:
+      enabled: true
+
+# ── ClickHouse ────────────────────────────────────────────────
+clickhouse:
+  enabled: true
+
+  replicaCount: 2
+
+  auth:
+    username: "ace"
+    existingSecret: "ace-clickhouse-secret"
+    existingSecretKey: "admin-password"
+
+  persistence:
+    enabled: true
+    size: 500Gi
+
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "8"
+      memory: "32Gi"
+
+  # Initialize ACE schema on first boot.
+  initdbScripts:
+    ace_schema.sql: |
+      -- ACE events table (partitioned by day, ordered for query performance)
+      CREATE TABLE IF NOT EXISTS ace.events
+      (
+          event_id          String,
+          tenant_id         LowCardinality(String),
+          timestamp_source  DateTime64(9, 'UTC'),
+          timestamp_ingest  DateTime64(9, 'UTC'),
+          source_domain     LowCardinality(String),
+          source_type       LowCardinality(String),
+          severity          LowCardinality(String),
+          collector_id      LowCardinality(String),
+          src_ip            String,
+          dst_ip            String,
+          src_port          UInt16,
+          dst_port          UInt16,
+          protocol          LowCardinality(String),
+          user              String,
+          action            String,
+          outcome           LowCardinality(String),
+          cloud_provider    LowCardinality(String),
+          cloud_region      LowCardinality(String),
+          api_call          String,
+          iam_principal     String,
+          resource_arn      String,
+          plc_address       String,
+          function_code     UInt32,
+          purdue_level      UInt8,
+          threat_score      Float32,
+          mitre_techniques  Array(String),
+          tags              Array(String),
+          session_id        String,
+          raw_event         String   -- JSON string of NormalizedFields
+      )
+      ENGINE = MergeTree()
+      PARTITION BY toYYYYMMDD(timestamp_source)
+      ORDER BY (tenant_id, source_domain, timestamp_source, event_id)
+      TTL timestamp_source + INTERVAL 90 DAY
+      SETTINGS index_granularity = 8192;
+
+      -- Materialized view for per-tenant threat score summaries
+      CREATE TABLE IF NOT EXISTS ace.threat_sessions
+      (
+          session_id      String,
+          tenant_id       LowCardinality(String),
+          first_seen      DateTime64(9, 'UTC'),
+          last_seen       DateTime64(9, 'UTC'),
+          event_count     UInt32,
+          max_score       Float32,
+          domains         Array(String),
+          techniques      Array(String)
+      )
+      ENGINE = ReplacingMergeTree(last_seen)
+      ORDER BY (tenant_id, session_id);
+
+# ── Redis ─────────────────────────────────────────────────────
+redis:
+  enabled: true
+
+  architecture: replication
+
+  auth:
+    enabled: true
+    existingSecret: "ace-redis-secret"
+    existingSecretPasswordKey: "password"
+
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+
+  replica:
+    replicaCount: 3
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# ── PostgreSQL ────────────────────────────────────────────────
+postgresql:
+  enabled: true
+
+  auth:
+    database: "ace"
+    username: "ace"
+    existingSecret: "ace-postgres-secret"
+
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+    initdb:
+      scripts:
+        init.sql: |
+          -- Platform metadata
+          CREATE TABLE IF NOT EXISTS tenants (
+              id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name       TEXT NOT NULL UNIQUE,
+              created_at TIMESTAMPTZ DEFAULT NOW()
+          );
+
+          -- Asset inventory (base table; extended in ace-asset-inventory)
+          CREATE TABLE IF NOT EXISTS assets (
+              id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              tenant_id    UUID NOT NULL REFERENCES tenants(id),
+              name         TEXT NOT NULL,
+              domain       TEXT NOT NULL CHECK (domain IN ('IT', 'OT', 'CLOUD')),
+              asset_type   TEXT NOT NULL,
+              ip_addresses TEXT[],
+              mac_addresses TEXT[],
+              tags         TEXT[],
+              metadata     JSONB,
+              created_at   TIMESTAMPTZ DEFAULT NOW(),
+              updated_at   TIMESTAMPTZ DEFAULT NOW()
+          );
+          CREATE INDEX IF NOT EXISTS assets_tenant_id_idx ON assets(tenant_id);
+          CREATE INDEX IF NOT EXISTS assets_ip_idx ON assets USING GIN(ip_addresses);
+
+          -- Users / RBAC
+          CREATE TABLE IF NOT EXISTS platform_users (
+              id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              tenant_id   UUID NOT NULL REFERENCES tenants(id),
+              username    TEXT NOT NULL,
+              email       TEXT NOT NULL UNIQUE,
+              roles       TEXT[],
+              created_at  TIMESTAMPTZ DEFAULT NOW()
+          );
+
+          -- Case management
+          CREATE TABLE IF NOT EXISTS cases (
+              id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              tenant_id    UUID NOT NULL REFERENCES tenants(id),
+              title        TEXT NOT NULL,
+              severity     TEXT NOT NULL,
+              status       TEXT NOT NULL DEFAULT 'open',
+              assignee_id  UUID REFERENCES platform_users(id),
+              session_id   TEXT,
+              created_at   TIMESTAMPTZ DEFAULT NOW(),
+              updated_at   TIMESTAMPTZ DEFAULT NOW()
+          );
+
+# ── MinIO ─────────────────────────────────────────────────────
+minio:
+  enabled: true
+
+  mode: distributed
+  replicas: 4
+
+  auth:
+    existingSecret: "ace-minio-secret"
+
+  persistence:
+    enabled: true
+    size: 500Gi
+
+  defaultBuckets: "ace-pcap,ace-raw-logs,ace-reports"
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"

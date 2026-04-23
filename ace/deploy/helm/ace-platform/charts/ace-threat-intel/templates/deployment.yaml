@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ace-threat-intel.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ace-threat-intel.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ace-threat-intel.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ace-threat-intel.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ace-threat-intel.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ace-threat-intel
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: ACE_THREAT_INTEL_PORT
+              value: {{ .Values.port | quote }}
+            - name: ACE_THREAT_INTEL_REDIS_ADDR
+              value: {{ .Values.redis.addr | quote }}
+            - name: ACE_THREAT_INTEL_REDIS_DB
+              value: {{ .Values.redis.db | quote }}
+            - name: ACE_THREAT_INTEL_IOC_CACHE_TTL
+              value: {{ .Values.iocCacheTtl | quote }}
+            - name: ACE_THREAT_INTEL_SYNC_INTERVAL
+              value: {{ .Values.syncInterval | quote }}
+            {{- if .Values.otxApiKey }}
+            - name: ACE_THREAT_INTEL_OTX_API_KEY
+              value: {{ .Values.otxApiKey | quote }}
+            {{- end }}
+            {{- if .Values.taxiiServer }}
+            - name: ACE_THREAT_INTEL_TAXII_SERVER
+              value: {{ .Values.taxiiServer | quote }}
+            - name: ACE_THREAT_INTEL_TAXII_USER
+              value: {{ .Values.taxiiUser | quote }}
+            - name: ACE_THREAT_INTEL_TAXII_PASS
+              value: {{ .Values.taxiiPass | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

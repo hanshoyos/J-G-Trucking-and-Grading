@@ -1,0 +1,65 @@
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "ace-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ace-operator.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ace-operator.fullname" . }}-manager
+  labels:
+    {{- include "ace-operator.labels" . | nindent 4 }}
+rules:
+  # IngestPipeline CRD management
+  - apiGroups: ["ace.platform.io"]
+    resources: ["ingestpipelines"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["ace.platform.io"]
+    resources: ["ingestpipelines/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["ace.platform.io"]
+    resources: ["ingestpipelines/finalizers"]
+    verbs: ["update"]
+  # Manage owned Deployments / Services / ConfigMaps
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "serviceaccounts"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Read Secrets (SASL credentials)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  # Events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  # Leader election
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ace-operator.fullname" . }}-manager
+  labels:
+    {{- include "ace-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ace-operator.fullname" . }}-manager
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ace-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

@@ -1,0 +1,12 @@
+version: v1
+name: buf.build/ace-platform/ace
+
+lint:
+  use:
+    - DEFAULT
+  except:
+    - PACKAGE_VERSION_SUFFIX   # we use v1 not v1alpha1 for the core schema
+
+breaking:
+  use:
+    - FILE

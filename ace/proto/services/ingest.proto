@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package ace.ingest.v1;
+
+option go_package = "github.com/ace-platform/ace/proto/gen/go/ace/ingest/v1";
+
+import "ace_cef.proto";
+
+// Internal raw event produced by ace-ingest before normalization.
+// Kept minimal — normalization happens in ace-normalize.
+message RawEvent {
+  string          event_id         = 1;   // UUIDv7
+  string          tenant_id        = 2;
+  int64           timestamp_ingest = 3;   // Unix nanoseconds
+  ace.v1.SourceDomain source_domain = 4;
+  string          source_type      = 5;
+  string          collector_id     = 6;
+  bytes           payload          = 7;   // Raw bytes, NOT compressed at this stage
+  string          src_addr         = 8;   // IP:port of sender (if network-sourced)
+}

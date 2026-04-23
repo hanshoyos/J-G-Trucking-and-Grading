@@ -1,0 +1,416 @@
+# ─────────────────────────────────────────────────────────────
+#  ACE Platform — master values file
+#
+#  All sub-chart defaults can be overridden here.
+#  Use `helm install ace-platform ./ace-platform -f my-overrides.yaml`
+# ─────────────────────────────────────────────────────────────
+
+global:
+  # Registry prefix for all ACE service images.
+  imageRegistry: "ghcr.io/ace-platform"
+  imageTag: "0.1.0"
+  imagePullPolicy: IfNotPresent
+
+  # Default tenant for single-tenant deployments.
+  tenantId: "default"
+
+  # Istio mTLS annotation (set to "STRICT" for production).
+  istioMode: "PERMISSIVE"
+
+# ─────────────────────────────────────────────────────────────
+#  Infrastructure dependencies
+# ─────────────────────────────────────────────────────────────
+
+ace-deps:
+  enabled: true
+
+  kafka:
+    enabled: true
+    replicaCount: 3
+    # KRaft mode — no ZooKeeper
+    kraft:
+      enabled: true
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: ""
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+
+  clickhouse:
+    enabled: true
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 500Gi
+      storageClass: ""
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "8"
+        memory: "32Gi"
+    # ACE schema initialization
+    initDb:
+      enabled: true
+
+  redis:
+    enabled: true
+    architecture: replication
+    auth:
+      enabled: true
+      existingSecret: "ace-redis-secret"
+      existingSecretPasswordKey: "password"
+    replica:
+      replicaCount: 3
+
+  postgresql:
+    enabled: true
+    auth:
+      database: "ace"
+      existingSecret: "ace-postgres-secret"
+    primary:
+      persistence:
+        enabled: true
+        size: 50Gi
+
+  minio:
+    enabled: true
+    mode: distributed
+    replicas: 4
+    persistence:
+      enabled: true
+      size: 500Gi
+
+  keycloak:
+    enabled: true
+
+# ─────────────────────────────────────────────────────────────
+#  ACE Operator
+# ─────────────────────────────────────────────────────────────
+
+ace-operator:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-operator"
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  # The container image used for ace-ingest pods (overridden per IngestPipeline CR).
+  ingestImageRef: "ghcr.io/ace-platform/ace-ingest"
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # Install the IngestPipeline CRD.
+  crds:
+    install: true
+
+# ─────────────────────────────────────────────────────────────
+#  ACE Ingest
+# ─────────────────────────────────────────────────────────────
+
+ace-ingest:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-ingest"
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  # Kafka broker endpoint (override for external Kafka).
+  kafkaBrokers: "ace-kafka:9092"
+
+  tenantId: "default"
+
+  protocols:
+    syslog:
+      enabled: true
+      udpPort: 514
+      tcpPort: 6514
+    modbus:
+      enabled: false
+    cloudtrail:
+      enabled: false
+    wef:
+      enabled: false
+    k8sAudit:
+      enabled: false
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "4"
+      memory: "4Gi"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  # Pod anti-affinity to spread across nodes.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: ace-ingest
+            topologyKey: kubernetes.io/hostname
+
+# ─────────────────────────────────────────────────────────────
+#  ACE Normalize
+# ─────────────────────────────────────────────────────────────
+
+ace-normalize:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-normalize"
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  kafkaBrokers: "ace-kafka:9092"
+  tenantId: "default"
+
+  # Optional: path to MaxMind GeoLite2-City.mmdb mounted via ConfigMap or PVC.
+  geoipDbPath: ""
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "4"
+      memory: "4Gi"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# ─────────────────────────────────────────────────────────────
+#  ACE Correlate  (Phase 2 — streaming correlation engine)
+# ─────────────────────────────────────────────────────────────
+
+ace-correlate:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-correlate"
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  kafkaBrokers: "ace-kafka:9092"
+  tenantId: "default"
+
+  kafka:
+    normalizedTopic: "ace.events.normalized"
+    enrichedTopic: "ace.events.enriched"
+    alertsTopic: "ace.alerts"
+    consumerGroup: "ace-correlate"
+
+  engine:
+    # Size of the in-memory sliding window store (max concurrent rule windows).
+    maxSessions: 10000
+    # Garbage-collect stale windows every N seconds.
+    gcIntervalSecs: 60
+
+  port: 8082
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 16
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: ace-correlate
+            topologyKey: kubernetes.io/hostname
+
+# ─────────────────────────────────────────────────────────────
+#  ACE MITRE Engine  (Phase 2 — ATT&CK technique database + heatmap)
+# ─────────────────────────────────────────────────────────────
+
+ace-mitre-engine:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-mitre-engine"
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  port: 8090
+
+  database:
+    url: "postgres://ace:ace@ace-postgresql:5432/ace_mitre?sslmode=disable"
+
+  # Fetch and load STIX bundles from MITRE CTI GitHub on startup.
+  # Disable for air-gapped deployments; prime the DB via a Job instead.
+  syncOnStart: false
+  syncIntervalHours: 24
+
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  serviceAccount:
+    create: true
+    name: ""
+
+# ─────────────────────────────────────────────────────────────
+#  ACE Threat Intel  (Phase 2 — IOC aggregation and cache)
+# ─────────────────────────────────────────────────────────────
+
+ace-threat-intel:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-threat-intel"
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  port: 8091
+
+  redis:
+    addr: "ace-redis-master:6379"
+    password: ""
+    db: 0
+    # TTL for cached IOC entries (seconds).
+    iocTtlSecs: 86400
+
+  feeds:
+    cisaKev:
+      enabled: true
+      # Override URL for air-gapped deployments.
+      url: ""
+    otx:
+      enabled: false
+      apiKey: ""
+    abusech:
+      enabled: true
+    taxii:
+      enabled: false
+      url: ""
+      username: ""
+      password: ""
+
+  # Feed refresh interval in seconds (default 6 h).
+  refreshIntervalSecs: 21600
+
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  serviceAccount:
+    create: true
+    name: ""
+
+# ─────────────────────────────────────────────────────────────
+#  ACE Asset Inventory  (Phase 2 — unified IT/OT/Cloud CMDB)
+# ─────────────────────────────────────────────────────────────
+
+ace-asset-inventory:
+  enabled: true
+
+  replicaCount: 2
+
+  image:
+    repository: "ghcr.io/ace-platform/ace-asset-inventory"
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  port: 8092
+
+  database:
+    url: "postgres://ace:ace@ace-postgresql:5432/ace_assets?sslmode=disable"
+
+  kafka:
+    brokers: "ace-kafka:9092"
+    normalizedTopic: "ace.events.normalized"
+    consumerGroup: "ace-asset-inventory"
+
+  purdue:
+    # Override Purdue level assignments by CIDR subnet.
+    # Format: list of {cidr, level} objects.
+    subnetOverrides: []
+    # Example:
+    # - cidr: "10.100.0.0/16"
+    #   level: 2
+
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  serviceAccount:
+    create: true
+    name: ""

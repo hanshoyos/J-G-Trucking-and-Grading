@@ -1,0 +1,48 @@
+# Rust
+target/
+Cargo.lock          # keep for binaries; services commit their own
+
+# Go
+vendor/
+*.test
+coverage.out
+
+# Node / Next.js
+node_modules/
+.next/
+.env*.local
+
+# Secrets — never commit
+*.pem
+*.key
+*.crt
+secrets/
+sealed-secrets/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artefacts
+dist/
+build/
+*.tar.gz
+*.zip
+
+# Helm
+charts/*.tgz
+.helm/
+
+# PCAP captures
+*.pcap
+*.pcapng
+
+# MaxMind DB
+*.mmdb

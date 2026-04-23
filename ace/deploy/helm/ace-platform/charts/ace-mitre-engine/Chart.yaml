@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ace-mitre-engine
+description: ACE MITRE ATT&CK knowledge engine — STIX ingestion and technique API
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
